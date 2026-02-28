@@ -1,0 +1,8 @@
+node_modules/
+dist/
+/.claude/
+/.idea/
+/.wwebjs_auth/
+/.wwebjs_cache/
+/src/.wwebjs_auth/
+/src/.wwebjs_cache/
