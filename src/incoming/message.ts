@@ -1,4 +1,4 @@
-import {Client, LocalAuth, Message, MessageTypes, Poll, PollVote} from 'whatsapp-web.js';
+import {Client, Message, MessageTypes} from 'whatsapp-web.js';
 import {processResponse, ApiResponse} from "../outgoing/response";
 
 export async function processMessage(client: Client, message: Message) {

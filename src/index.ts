@@ -1,4 +1,4 @@
-import {Client, LocalAuth, Message, MessageTypes, Poll, PollVote} from 'whatsapp-web.js';
+import {Client, LocalAuth, Message, PollVote} from 'whatsapp-web.js';
 import qrcode from 'qrcode-terminal';
 import { isAllowed } from './config/whitelist.js';
 import { processMessage } from './incoming/message.js';
