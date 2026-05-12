@@ -7,6 +7,8 @@ import { loadMessageOutboxConfig } from './config/env.js';
 import { createPool, closePool } from './db/connection_pool';
 import { resetStaleProcessing } from './db/message_queries';
 import { startMessageOutboxProcessor } from './outgoing/message_processor';
+import { saveQrImage, clearQrImage } from './qr/storage.js';
+import { startQrServer, stopQrServer } from './qr/server.js';
 
 const messageOutboxConfig = loadMessageOutboxConfig();
 
@@ -17,12 +19,14 @@ const client = new Client({
 client.on('qr', (qr: string) => {
     qrcode.generate(qr, { small: true });
     console.log('Scan the QR code above to log in.');
+    saveQrImage(qr).catch((err: unknown) => console.error('Failed to save QR image:', err));
 });
 
 let readyTimestamp: number | null = null;
 
 client.on('ready', async () => {
     readyTimestamp = Math.floor(Date.now() / 1000);
+    clearQrImage();
     console.log('WhatsApp client is ready.');
 
     if (messageOutboxConfig) {
@@ -62,12 +66,15 @@ client.on('vote_update', async (vote: PollVote) => {
 
 async function shutdown() {
     console.log('Shutting down...');
+    stopQrServer();
     await closePool();
     process.exit(0);
 }
 
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
+
+startQrServer(3000);
 
 client.initialize().catch((error) => {
     console.error('Failed to initialize WhatsApp client:', error);
