@@ -1,17 +1,17 @@
 import {Client, Message, MessageTypes} from 'whatsapp-web.js';
 import {processResponse, ApiResponse} from "../outgoing/conversation_response";
 
-export async function processMessage(client: Client, message: Message) {
+export async function processMessage(client: Client, message: Message, mainServiceUrl: string) {
     if (message.type === MessageTypes.AUDIO || message.type === MessageTypes.VOICE) {
-        return processAudioMessage(client, message);
+        return processAudioMessage(client, message, mainServiceUrl);
     } else if (message.type === MessageTypes.TEXT) {
-        return processTextMessage(client, message);
+        return processTextMessage(client, message, mainServiceUrl);
     } else if (message.type === MessageTypes.IMAGE) {
         return;
     }
 }
 
-async function processAudioMessage(client: Client, message: Message) {
+async function processAudioMessage(client: Client, message: Message, mainServiceUrl: string) {
     console.log('Audio message received from', message.from);
 
     let media;
@@ -34,7 +34,7 @@ async function processAudioMessage(client: Client, message: Message) {
     form.append('audio', file);
     form.append('sender', message.from);
 
-    await fetch('http://localhost:8000/api/conversation/audiomessage', {
+    await fetch(`${mainServiceUrl}/api/conversation/audiomessage`, {
         method: 'POST',
         body: form,
     }).then(function(response) {
@@ -48,10 +48,10 @@ async function processAudioMessage(client: Client, message: Message) {
     return;
 }
 
-async function processTextMessage(client: Client, message: Message) {
+async function processTextMessage(client: Client, message: Message, mainServiceUrl: string) {
     console.log('Text message received from', message.from);
 
-    await fetch('http://localhost:8000/api/conversation/textmessage', {
+    await fetch(`${mainServiceUrl}/api/conversation/textmessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: message.body, sender: message.from }),

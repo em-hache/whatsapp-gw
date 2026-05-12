@@ -2,7 +2,7 @@ import {Client, PollVote} from 'whatsapp-web.js';
 import {processResponse, ApiResponse} from "../outgoing/conversation_response";
 
 
-export async function processPollEvent(client: Client, vote: PollVote){
+export async function processPollEvent(client: Client, vote: PollVote, mainServiceUrl: string){
 
     console.log('Poll event received from ', vote.voter);
 
@@ -10,7 +10,7 @@ export async function processPollEvent(client: Client, vote: PollVote){
         return
     }
 
-    await fetch('http://localhost:8000/api/conversation/textmessage', {
+    await fetch(`${mainServiceUrl}/api/conversation/textmessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // @ts-ignore

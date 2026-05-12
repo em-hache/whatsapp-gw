@@ -3,13 +3,14 @@ import qrcode from 'qrcode-terminal';
 import { isBlacklisted } from './config/blacklist';
 import { processMessage } from './incoming/conversation_message';
 import { processPollEvent } from './incoming/conversation_poll';
-import { loadMessageOutboxConfig } from './config/env.js';
+import { loadAppConfig, loadMessageOutboxConfig } from './config/env.js';
 import { createPool, closePool } from './db/connection_pool';
 import { resetStaleProcessing } from './db/message_queries';
 import { startMessageOutboxProcessor } from './outgoing/message_processor';
 import { saveQrImage, clearQrImage } from './qr/storage.js';
 import { startQrServer, stopQrServer } from './qr/server.js';
 
+const appConfig = loadAppConfig();
 const messageOutboxConfig = loadMessageOutboxConfig();
 
 const client = new Client({
@@ -49,7 +50,7 @@ client.on('message', async (message: Message) => {
         console.log('Not processing message from blacklisted id:', message.from);
         return;
     }
-    await processMessage(client, message);
+    await processMessage(client, message, appConfig.mainServiceUrl);
 });
 
 client.on('vote_update', async (vote: PollVote) => {
@@ -61,7 +62,7 @@ client.on('vote_update', async (vote: PollVote) => {
     }
     console.log('Poll vote received from ', vote.voter);
 
-    await processPollEvent(client, vote);
+    await processPollEvent(client, vote, appConfig.mainServiceUrl);
 });
 
 async function shutdown() {

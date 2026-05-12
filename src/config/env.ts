@@ -1,5 +1,15 @@
 import {Message} from "whatsapp-web.js";
 
+export interface AppConfig {
+    mainServiceUrl: string;
+}
+
+export function loadAppConfig(): AppConfig {
+    return {
+        mainServiceUrl: process.env['MAIN_SERVICE_URL'] ?? 'http://localhost:8000',
+    };
+}
+
 export interface MessageOutboxConfig {
     db: {
         host: string;
