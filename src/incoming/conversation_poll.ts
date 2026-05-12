@@ -1,5 +1,5 @@
 import {Client, PollVote} from 'whatsapp-web.js';
-import {processResponse, ApiResponse} from "../outgoing/response";
+import {processResponse, ApiResponse} from "../outgoing/conversation_response";
 
 
 export async function processPollEvent(client: Client, vote: PollVote){

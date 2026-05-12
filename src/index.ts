@@ -1,8 +1,14 @@
 import {Client, LocalAuth, Message, PollVote} from 'whatsapp-web.js';
 import qrcode from 'qrcode-terminal';
-import { isAllowed } from './config/whitelist.js';
-import { processMessage } from './incoming/message.js';
-import { processPollEvent } from './incoming/poll.js';
+import { isBlacklisted } from './config/blacklist';
+import { processMessage } from './incoming/conversation_message';
+import { processPollEvent } from './incoming/conversation_poll';
+import { loadMessageOutboxConfig } from './config/env.js';
+import { createPool, closePool } from './db/connection_pool';
+import { resetStaleProcessing } from './db/message_queries';
+import { startMessageOutboxProcessor } from './outgoing/message_processor';
+
+const messageOutboxConfig = loadMessageOutboxConfig();
 
 const client = new Client({
     authStrategy: new LocalAuth(),
@@ -15,9 +21,17 @@ client.on('qr', (qr: string) => {
 
 let readyTimestamp: number | null = null;
 
-client.on('ready', () => {
+client.on('ready', async () => {
     readyTimestamp = Math.floor(Date.now() / 1000);
     console.log('WhatsApp client is ready.');
+
+    if (messageOutboxConfig) {
+        const pool = createPool(messageOutboxConfig.db);
+        await resetStaleProcessing(pool);
+        startMessageOutboxProcessor(client, pool, messageOutboxConfig);
+    } else {
+        console.log('Outbox processor skipped (DB_NAME, DB_USER, or DB_PASSWORD not set).');
+    }
 });
 
 client.on('disconnected', (reason: string) => {
@@ -27,8 +41,8 @@ client.on('disconnected', (reason: string) => {
 client.on('message', async (message: Message) => {
     if (readyTimestamp === null || message.timestamp < readyTimestamp) return;
 
-    if (!isAllowed(message.from)) {
-        console.log('Not processing message from non-whitelisted id:', message.from);
+    if (isBlacklisted(message.from)) {
+        console.log('Not processing message from blacklisted id:', message.from);
         return;
     }
     await processMessage(client, message);
@@ -37,14 +51,23 @@ client.on('message', async (message: Message) => {
 client.on('vote_update', async (vote: PollVote) => {
     if (readyTimestamp === null || vote.interractedAtTs < readyTimestamp) return;
 
-    if (!isAllowed(vote.voter)) {
-        console.log('Not processing poll event from non-whitelisted id:', vote.voter);
+    if (isBlacklisted(vote.voter)) {
+        console.log('Not processing poll event from blacklisted id:', vote.voter);
         return;
     }
     console.log('Poll vote received from ', vote.voter);
 
     await processPollEvent(client, vote);
 });
+
+async function shutdown() {
+    console.log('Shutting down...');
+    await closePool();
+    process.exit(0);
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
 client.initialize().catch((error) => {
     console.error('Failed to initialize WhatsApp client:', error);

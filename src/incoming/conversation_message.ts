@@ -1,5 +1,5 @@
 import {Client, Message, MessageTypes} from 'whatsapp-web.js';
-import {processResponse, ApiResponse} from "../outgoing/response";
+import {processResponse, ApiResponse} from "../outgoing/conversation_response";
 
 export async function processMessage(client: Client, message: Message) {
     if (message.type === MessageTypes.AUDIO || message.type === MessageTypes.VOICE) {
