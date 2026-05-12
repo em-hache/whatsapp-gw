@@ -1,8 +1,17 @@
-import {Client, LocalAuth, Message, MessageTypes, PollVote} from 'whatsapp-web.js';
+import {Client, LocalAuth, Message, PollVote} from 'whatsapp-web.js';
 import qrcode from 'qrcode-terminal';
-import { isAllowed } from './config/whitelist.js';
-import { getSession, createSession, deleteSession } from './sessions/session-manager.js';
-import { startNewFlow, handlePollVote, handleMessage } from './flows/flow-starter';
+import { isBlacklisted } from './config/blacklist';
+import { processMessage } from './incoming/conversation_message';
+import { processPollEvent } from './incoming/conversation_poll';
+import { loadAppConfig, loadMessageOutboxConfig } from './config/env.js';
+import { createPool, closePool } from './db/connection_pool';
+import { resetStaleProcessing } from './db/message_queries';
+import { startMessageOutboxProcessor } from './outgoing/message_processor';
+import { saveQrImage, clearQrImage } from './qr/storage.js';
+import { startQrServer, stopQrServer } from './qr/server.js';
+
+const appConfig = loadAppConfig();
+const messageOutboxConfig = loadMessageOutboxConfig();
 
 const client = new Client({
     authStrategy: new LocalAuth(),
@@ -11,13 +20,23 @@ const client = new Client({
 client.on('qr', (qr: string) => {
     qrcode.generate(qr, { small: true });
     console.log('Scan the QR code above to log in.');
+    saveQrImage(qr).catch((err: unknown) => console.error('Failed to save QR image:', err));
 });
 
 let readyTimestamp: number | null = null;
 
-client.on('ready', () => {
+client.on('ready', async () => {
     readyTimestamp = Math.floor(Date.now() / 1000);
+    clearQrImage();
     console.log('WhatsApp client is ready.');
+
+    if (messageOutboxConfig) {
+        const pool = createPool(messageOutboxConfig.db);
+        await resetStaleProcessing(pool);
+        startMessageOutboxProcessor(client, pool, messageOutboxConfig);
+    } else {
+        console.log('Outbox processor skipped (DB_NAME, DB_USER, or DB_PASSWORD not set).');
+    }
 });
 
 client.on('disconnected', (reason: string) => {
@@ -27,92 +46,38 @@ client.on('disconnected', (reason: string) => {
 client.on('message', async (message: Message) => {
     if (readyTimestamp === null || message.timestamp < readyTimestamp) return;
 
-    if (!isAllowed(message.from)) {
-        console.log('Not processing message from non-whitelisted id:', message.from);
+    if (isBlacklisted(message.from)) {
+        console.log('Not processing message from blacklisted id:', message.from);
         return;
     }
-
-    if (message.type === MessageTypes.AUDIO || message.type === MessageTypes.VOICE) {
-        return processAudioMessage(message);
-    } else if (message.type === MessageTypes.TEXT) {
-        return processTextMessage(message);
-    } else if (message.type === MessageTypes.IMAGE) {
-        return;
-    }
+    await processMessage(client, message, appConfig.mainServiceUrl);
 });
 
-client.on('poll_vote', async (vote: PollVote) => {
+client.on('vote_update', async (vote: PollVote) => {
+    if (readyTimestamp === null || vote.interractedAtTs < readyTimestamp) return;
+
+    if (isBlacklisted(vote.voter)) {
+        console.log('Not processing poll event from blacklisted id:', vote.voter);
+        return;
+    }
     console.log('Poll vote received from ', vote.voter);
 
-    const form = new FormData();
-    form.append('question', vote.parentMessage.body);
-    // @ts-ignore
-    form.append('selected', vote.selectedOptions[0].name);
-    form.append('sender', vote.voter);
-    await fetch('http://localhost:8000/api/conversation/option-selected', {
-        method: 'POST',
-        body: form,
-    }).then(function(response) {
-        return response.text();
-    }).then(function(text) {
-        console.log(text);
-        client.sendMessage(vote.voter, text);
-    });
-    return;
+    await processPollEvent(client, vote, appConfig.mainServiceUrl);
 });
 
-async function processAudioMessage(message: Message) {
-    console.log('Audio message received from', message.from);
-
-    let media;
-    for (let attempt = 0; attempt < 5; attempt++) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        media = await message.downloadMedia();
-        if (media?.data?.length > 0) break;
-        console.log(`downloadMedia attempt ${attempt + 1} returned empty, retrying...`);
-    }
-    if (!media?.data?.length) {
-        console.log('Failed to download audio after 5 attempts');
-        return;
-    }
-    const audioBuffer = Buffer.from(media.data, 'base64');
-    const extension = media.mimetype.split('/')[1] ?? 'ogg';
-    console.log('Audio mimetype:', media.mimetype, '| buffer bytes:', audioBuffer.length);
-    const file = new File([audioBuffer], `audio.${extension}`, { type: media.mimetype });
-
-    const form = new FormData();
-    form.append('audio', file);
-    form.append('sender', message.from);
-
-    await fetch('http://localhost:8000/api/conversation/message', {
-        method: 'POST',
-        body: form,
-    }).then(function(response) {
-        return response.text();
-    }).then(function(text) {
-        console.log(text);
-        client.sendMessage(message.from, text);
-    });
-    return;
+async function shutdown() {
+    console.log('Shutting down...');
+    stopQrServer();
+    await closePool();
+    process.exit(0);
 }
 
-async function processTextMessage(message: Message) {
-    console.log('Text message received from', message.from);
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
-    const form = new FormData();
-    form.append('message', message.body);
-    form.append('sender', message.from);
+startQrServer(3000);
 
-    await fetch('http://localhost:8000/api/conversation/message', {
-        method: 'POST',
-        body: form,
-    }).then(function(response) {
-        return response.text();
-    }).then(function(text) {
-        console.log(text);
-        client.sendMessage(message.from, text);
-    });
-    return;
-}
-
-client.initialize();
+client.initialize().catch((error) => {
+    console.error('Failed to initialize WhatsApp client:', error);
+    process.exit(1);
+});
