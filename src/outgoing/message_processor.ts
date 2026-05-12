@@ -12,7 +12,7 @@ export function startMessageOutboxProcessor(client: Client, pool: pg.Pool, confi
 
     async function poll(): Promise<void> {
         try {
-            const rows = await claimPendingBatch(pool, config.batchSize);
+            const rows = await claimPendingBatch(pool, config.batchSize, config.minSendIntervalMs, config.backoffMs);
             if (rows.length > 0) {
                 console.log(`Outbox: claimed ${rows.length} message(s) to send.`);
             }

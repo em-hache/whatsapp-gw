@@ -12,14 +12,37 @@ export interface OutboxRow {
     completed_at: Date | null;
 }
 
-export async function claimPendingBatch(pool: pg.Pool, batchSize: number): Promise<OutboxRow[]> {
+export async function claimPendingBatch(
+    pool: pg.Pool,
+    batchSize: number,
+    minSendIntervalMs: number,
+    backoffMs: number
+): Promise<OutboxRow[]> {
     const result = await pool.query<OutboxRow>(
-        `UPDATE message_outbox SET status = 'processing', processed_at = NOW()
-         WHERE id IN (
-             SELECT id FROM message_outbox WHERE status = 'pending'
-             ORDER BY created_at ASC LIMIT $1 FOR UPDATE SKIP LOCKED
-         ) RETURNING *`,
-        [batchSize]
+        `WITH candidates AS MATERIALIZED (
+            SELECT DISTINCT ON (recipient_phone) id, created_at
+            FROM message_outbox
+            WHERE status = 'pending'
+              AND (processed_at IS NULL OR processed_at <= NOW() - make_interval(secs => $3 / 1000.0))
+              AND recipient_phone NOT IN (
+                  SELECT recipient_phone FROM message_outbox
+                  WHERE status = 'sent'
+                    AND completed_at > NOW() - make_interval(secs => $2 / 1000.0)
+              )
+            ORDER BY recipient_phone, created_at ASC
+        ),
+        locked AS (
+            SELECT mo.id FROM message_outbox mo
+            JOIN candidates c ON mo.id = c.id
+            ORDER BY c.created_at ASC
+            LIMIT $1
+            FOR UPDATE SKIP LOCKED
+        )
+        UPDATE message_outbox
+        SET status = 'processing', processed_at = NOW()
+        WHERE id IN (SELECT id FROM locked)
+        RETURNING *`,
+        [batchSize, minSendIntervalMs, backoffMs]
     );
     return result.rows;
 }

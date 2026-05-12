@@ -12,6 +12,8 @@ export interface MessageOutboxConfig {
     batchSize: number;
     sendDelayMs: number;
     maxRetries: number;
+    minSendIntervalMs: number;
+    backoffMs: number;
 }
 
 export function loadMessageOutboxConfig(): MessageOutboxConfig | null {
@@ -35,5 +37,7 @@ export function loadMessageOutboxConfig(): MessageOutboxConfig | null {
         batchSize: parseInt(process.env['OUTBOX_BATCH_SIZE'] ?? '10', 10),
         sendDelayMs: parseInt(process.env['OUTBOX_SEND_DELAY_MS'] ?? '5000', 10),
         maxRetries: parseInt(process.env['OUTBOX_MAX_RETRIES'] ?? '3', 10),
+        minSendIntervalMs: parseInt(process.env['OUTBOX_MIN_SEND_INTERVAL_MS'] ?? '3600000', 10),
+        backoffMs: parseInt(process.env['OUTBOX_BACKOFF_MS'] ?? '3600000', 10),
     };
 }
