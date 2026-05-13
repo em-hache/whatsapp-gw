@@ -48,6 +48,7 @@ COPY --from=build /app/dist/ ./dist/
 
 RUN chown -R appuser:appuser /app
 
+RUN mkdir -p /app/.wwebjs_auth && chown -R appuser:appuser /app/.wwebjs_auth
 USER appuser
 
 EXPOSE 3000
