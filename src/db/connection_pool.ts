@@ -16,7 +16,7 @@ export function createPool(config: {
         user: config.user,
         password: config.password,
         max: 5,
-        ssl: { rejectUnauthorized: false },
+        ssl: process.env['DB_SSL'] === "false" ? false : { rejectUnauthorized: false },
     });
 
     connection_pool.on('error', (err) => {
