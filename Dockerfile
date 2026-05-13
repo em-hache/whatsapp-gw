@@ -37,12 +37,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
+RUN groupadd -r appuser && useradd -r -g appuser -m appuser
+
 WORKDIR /app
 
 COPY package.json package-lock.json* ./
 RUN npm ci --omit=dev
 
 COPY --from=build /app/dist/ ./dist/
+
+RUN chown -R appuser:appuser /app
+
+USER appuser
 
 EXPOSE 3000
 

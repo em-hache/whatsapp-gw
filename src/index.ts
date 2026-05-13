@@ -23,10 +23,12 @@ client.on('qr', (qr: string) => {
     saveQrImage(qr).catch((err: unknown) => console.error('Failed to save QR image:', err));
 });
 
-let readyTimestamp: number | null = null;
+let readyTimestampSec: number | null = null;
+let readyTimestampMs: number | null = null;
 
 client.on('ready', async () => {
-    readyTimestamp = Math.floor(Date.now() / 1000);
+    readyTimestampSec = Math.floor(Date.now() / 1000);
+    readyTimestampMs = Date.now();
     clearQrImage();
     console.log('WhatsApp client is ready.');
 
@@ -44,7 +46,7 @@ client.on('disconnected', (reason: string) => {
 });
 
 client.on('message', async (message: Message) => {
-    if (readyTimestamp === null || message.timestamp < readyTimestamp) return;
+    if (readyTimestampSec === null || message.timestamp < readyTimestampSec) return;
 
     if (isBlacklisted(message.from)) {
         console.log('Not processing message from blacklisted id:', message.from);
@@ -54,7 +56,7 @@ client.on('message', async (message: Message) => {
 });
 
 client.on('vote_update', async (vote: PollVote) => {
-    if (readyTimestamp === null || vote.interractedAtTs < readyTimestamp) return;
+    if (readyTimestampMs === null || vote.interractedAtTs < readyTimestampMs) return;
 
     if (isBlacklisted(vote.voter)) {
         console.log('Not processing poll event from blacklisted id:', vote.voter);
