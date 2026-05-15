@@ -7,7 +7,7 @@ import { loadAppConfig, loadMessageOutboxConfig } from './config/env.js';
 import { createPool, closePool } from './db/connection_pool';
 import { resetStaleProcessing } from './db/message_queries';
 import { startMessageOutboxProcessor } from './outgoing/message_processor';
-import { saveQrImage, clearQrImage } from './qr/storage.js';
+import { saveQrImage, clearQrImage, resetAuthentication } from './qr/storage.js';
 import { startQrServer, stopQrServer } from './qr/server.js';
 
 const appConfig = loadAppConfig();
@@ -18,6 +18,7 @@ const client = new Client({
 });
 
 client.on('qr', (qr: string) => {
+    resetAuthentication();
     qrcode.generate(qr, { small: true });
     console.log('Scan the QR code above to log in.');
     saveQrImage(qr).catch((err: unknown) => console.error('Failed to save QR image:', err));

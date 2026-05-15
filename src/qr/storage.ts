@@ -19,6 +19,10 @@ export function clearQrImage(): void {
     }
 }
 
+export function resetAuthentication(): void {
+    authenticated = false;
+}
+
 export function isAuthenticated(): boolean {
     return authenticated;
 }
