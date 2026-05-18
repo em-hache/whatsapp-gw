@@ -7,7 +7,7 @@ import jwt from 'jsonwebtoken';
  */
 export function generateServiceToken(jwtSecret: string): string {
     const payload = {
-        sub: 'whatsapp-gw-service',
+        sub: '1',
         service: 'whatsapp-gateway',
         role: 'service'
     };
