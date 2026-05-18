@@ -1,8 +1,9 @@
 import {Client, PollVote} from 'whatsapp-web.js';
 import {processResponse, ApiResponse} from "../outgoing/conversation_response";
+import {generateServiceToken} from "../utils/jwt";
 
 
-export async function processPollEvent(client: Client, vote: PollVote, mainServiceUrl: string){
+export async function processPollEvent(client: Client, vote: PollVote, mainServiceUrl: string, jwtSecretKey: string){
 
     console.log('Poll event received from ', vote.voter);
 
@@ -10,9 +11,14 @@ export async function processPollEvent(client: Client, vote: PollVote, mainServi
         return
     }
 
+    const token = generateServiceToken(jwtSecretKey);
+
     await fetch(`${mainServiceUrl}/api/conversation/textmessage`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
         // @ts-ignore
         body: JSON.stringify({ message: vote.selectedOptions[0].name, sender: vote.voter }),
     }).then(function(response) {

@@ -1,17 +1,18 @@
 import {Client, Message, MessageTypes} from 'whatsapp-web.js';
 import {processResponse, ApiResponse} from "../outgoing/conversation_response";
+import {generateServiceToken} from "../utils/jwt";
 
-export async function processMessage(client: Client, message: Message, mainServiceUrl: string) {
+export async function processMessage(client: Client, message: Message, mainServiceUrl: string, jwtSecretKey: string) {
     if (message.type === MessageTypes.AUDIO || message.type === MessageTypes.VOICE) {
-        return processAudioMessage(client, message, mainServiceUrl);
+        return processAudioMessage(client, message, mainServiceUrl, jwtSecretKey);
     } else if (message.type === MessageTypes.TEXT) {
-        return processTextMessage(client, message, mainServiceUrl);
+        return processTextMessage(client, message, mainServiceUrl, jwtSecretKey);
     } else if (message.type === MessageTypes.IMAGE) {
         return;
     }
 }
 
-async function processAudioMessage(client: Client, message: Message, mainServiceUrl: string) {
+async function processAudioMessage(client: Client, message: Message, mainServiceUrl: string, jwtSecretKey: string) {
     console.log('Audio message received from', message.from);
 
     let media;
@@ -34,8 +35,13 @@ async function processAudioMessage(client: Client, message: Message, mainService
     form.append('audio', file);
     form.append('sender', message.from);
 
+    const token = generateServiceToken(jwtSecretKey);
+
     await fetch(`${mainServiceUrl}/api/conversation/audiomessage`, {
         method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`
+        },
         body: form,
     }).then(function(response) {
         if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -48,12 +54,17 @@ async function processAudioMessage(client: Client, message: Message, mainService
     return;
 }
 
-async function processTextMessage(client: Client, message: Message, mainServiceUrl: string) {
+async function processTextMessage(client: Client, message: Message, mainServiceUrl: string, jwtSecretKey: string) {
     console.log('Text message received from', message.from);
+
+    const token = generateServiceToken(jwtSecretKey);
 
     await fetch(`${mainServiceUrl}/api/conversation/textmessage`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
         body: JSON.stringify({ message: message.body, sender: message.from }),
     }).then(function(response) {
         if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);

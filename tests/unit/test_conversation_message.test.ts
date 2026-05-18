@@ -9,6 +9,11 @@ jest.mock('../../src/outgoing/conversation_response', () => ({
 import { processResponse } from '../../src/outgoing/conversation_response';
 const mockedProcessResponse = processResponse as jest.MockedFunction<typeof processResponse>;
 
+// Mock the JWT utility
+jest.mock('../../src/utils/jwt', () => ({
+    generateServiceToken: jest.fn(() => 'mock-jwt-token'),
+}));
+
 // Mock global fetch
 const mockFetch = jest.fn() as jest.MockedFunction<typeof fetch>;
 global.fetch = mockFetch;
@@ -16,6 +21,7 @@ global.fetch = mockFetch;
 describe('processMessage', () => {
     let mockClient: ReturnType<typeof createMockClient>;
     const mainServiceUrl = 'http://localhost:8000';
+    const jwtSecretKey = 'test-secret-key';
 
     beforeEach(() => {
         jest.spyOn(console, 'log').mockImplementation(() => {});
@@ -38,13 +44,16 @@ describe('processMessage', () => {
                 json: async () => ({ reply_type: 'text', reply: 'Respuesta' }),
             } as Response);
 
-            await processMessage(mockClient as any, message as any, mainServiceUrl);
+            await processMessage(mockClient as any, message as any, mainServiceUrl, jwtSecretKey);
 
             expect(mockFetch).toHaveBeenCalledWith(
                 `${mainServiceUrl}/api/conversation/textmessage`,
                 expect.objectContaining({
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer mock-jwt-token'
+                    },
                     body: JSON.stringify({ message: 'Hola!', sender: '5491155551234@c.us' }),
                 })
             );
@@ -59,7 +68,7 @@ describe('processMessage', () => {
                 json: async () => apiResponse,
             } as Response);
 
-            await processMessage(mockClient as any, message as any, mainServiceUrl);
+            await processMessage(mockClient as any, message as any, mainServiceUrl, jwtSecretKey);
 
             expect(mockedProcessResponse).toHaveBeenCalledWith(
                 mockClient,
@@ -77,7 +86,7 @@ describe('processMessage', () => {
                 statusText: 'Internal Server Error',
             } as Response);
 
-            await processMessage(mockClient as any, message as any, mainServiceUrl);
+            await processMessage(mockClient as any, message as any, mainServiceUrl, jwtSecretKey);
 
             expect(mockedProcessResponse).not.toHaveBeenCalled();
         });
@@ -87,7 +96,7 @@ describe('processMessage', () => {
 
             mockFetch.mockRejectedValue(new Error('ECONNREFUSED'));
 
-            await processMessage(mockClient as any, message as any, mainServiceUrl);
+            await processMessage(mockClient as any, message as any, mainServiceUrl, jwtSecretKey);
 
             expect(mockedProcessResponse).not.toHaveBeenCalled();
         });
@@ -110,13 +119,16 @@ describe('processMessage', () => {
                 json: async () => ({ reply_type: 'text', reply: 'Transcribed' }),
             } as Response);
 
-            await processMessage(mockClient as any, message as any, mainServiceUrl);
+            await processMessage(mockClient as any, message as any, mainServiceUrl, jwtSecretKey);
 
             expect(message.downloadMedia).toHaveBeenCalled();
             expect(mockFetch).toHaveBeenCalledWith(
                 `${mainServiceUrl}/api/conversation/audiomessage`,
                 expect.objectContaining({
                     method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer mock-jwt-token'
+                    },
                 })
             );
 
@@ -136,7 +148,7 @@ describe('processMessage', () => {
                 json: async () => ({ reply_type: 'text', reply: 'OK' }),
             } as Response);
 
-            await processMessage(mockClient as any, message as any, mainServiceUrl);
+            await processMessage(mockClient as any, message as any, mainServiceUrl, jwtSecretKey);
 
             expect(message.downloadMedia).toHaveBeenCalled();
             expect(mockFetch).toHaveBeenCalledWith(
@@ -194,7 +206,7 @@ describe('processMessage', () => {
         it('should ignore IMAGE messages', async () => {
             const message = createMockMessage({ type: MessageTypes.IMAGE });
 
-            await processMessage(mockClient as any, message as any, mainServiceUrl);
+            await processMessage(mockClient as any, message as any, mainServiceUrl, jwtSecretKey);
 
             expect(mockFetch).not.toHaveBeenCalled();
         });

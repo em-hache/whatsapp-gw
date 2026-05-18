@@ -56,7 +56,7 @@ client.on('message', async (message: Message) => {
         console.log('Not processing message from blacklisted id:', message.from);
         return;
     }
-    await processMessage(client, message, appConfig.mainServiceUrl);
+    await processMessage(client, message, appConfig.mainServiceUrl, appConfig.jwtSecretKey);
 });
 
 client.on('vote_update', async (vote: PollVote) => {
@@ -68,7 +68,7 @@ client.on('vote_update', async (vote: PollVote) => {
     }
     console.log('Poll vote received from ', vote.voter);
 
-    await processPollEvent(client, vote, appConfig.mainServiceUrl);
+    await processPollEvent(client, vote, appConfig.mainServiceUrl, appConfig.jwtSecretKey);
 });
 
 async function shutdown() {
