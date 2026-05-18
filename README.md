@@ -91,8 +91,10 @@ src/
 ├── outgoing/
 │   ├── message_processor.ts     # Outbox polling loop
 │   └── conversation_response.ts # API response → WhatsApp message translation
+├── middleware/
+│   └── auth.ts             # JWT token validation
 ├── qr/
-│   ├── server.ts           # HTTP server for QR code endpoint
+│   ├── server.ts           # HTTP server for QR code endpoint (JWT protected)
 │   └── storage.ts          # QR code image lifecycle
 └── index.ts                # Entry point: client setup, event wiring, shutdown
 ```
@@ -132,7 +134,26 @@ WhatsApp Web requires scanning a QR code from an authenticated device to establi
 1. **Terminal** -- the QR code is printed directly to the console on startup using `qrcode-terminal`
 2. **HTTP endpoint** -- a lightweight HTTP server on port 3000 serves the QR code as a PNG image at `GET /qr`, useful for remote/containerized deployments where terminal access is impractical
 
-Once authenticated, the session is persisted to disk (`.wwebjs_auth/` directory) using whatsapp-web.js's `LocalAuth` strategy. Subsequent restarts reuse the stored session without requiring a new QR scan. The `GET /qr` endpoint returns `204 No Content` when the client is already authenticated.
+### JWT Authentication
+
+The `GET /qr` endpoint is protected with JWT authentication. Clients must include a valid JWT token in the `Authorization` header:
+
+```bash
+curl -H "Authorization: Bearer <your-jwt-token>" http://localhost:3000/qr
+```
+
+**Token requirements:**
+- Must be signed with the same `JWT_SECRET_KEY` as the backend service
+- Must use HS256 algorithm
+- Must include a `sub` claim (user ID)
+- Returns `401 Unauthorized` if the token is missing, expired, or invalid
+
+**Response codes:**
+- `200 OK` + PNG image -- QR code is available and ready to scan
+- `204 No Content` -- client is already authenticated, no QR needed
+- `401 Unauthorized` -- JWT token is missing, invalid, or expired
+
+Once authenticated, the session is persisted to disk (`.wwebjs_auth/` directory) using whatsapp-web.js's `LocalAuth` strategy. Subsequent restarts reuse the stored session without requiring a new QR scan.
 
 ## Getting Started
 
@@ -177,6 +198,7 @@ All configuration is managed through environment variables (or a `.env` file loa
 | Variable | Description | Default |
 |----------|-------------|:---:|
 | `MAIN_SERVICE_URL` | URL of the main service to forward incoming messages to | `http://localhost:8000` |
+| `JWT_SECRET_KEY` | Secret key for JWT authentication (must match the backend) | -- |
 
 ### Database (optional)
 
@@ -202,7 +224,7 @@ If any of `DB_NAME`, `DB_USER`, or `DB_PASSWORD` is missing, the outbox processo
 | `OUTBOX_MIN_SEND_INTERVAL_MS` | Minimum time between sends to the same recipient | `3600000` |
 | `OUTBOX_BACKOFF_MS` | Backoff period before retrying a failed message | `3600000` |
 
-> **Secrets:** `DB_PASSWORD` authenticates against the PostgreSQL database. It must be provided outside the codebase via environment variables or a `.env` file. The `.env` file is gitignored and should never be committed.
+> **Secrets:** Both `DB_PASSWORD` and `JWT_SECRET_KEY` are sensitive credentials that must be provided outside the codebase via environment variables or a `.env` file. The `.env` file is gitignored and should never be committed. The `JWT_SECRET_KEY` must match the secret used by the main service to ensure token validation works correctly.
 
 ## Running with Docker
 

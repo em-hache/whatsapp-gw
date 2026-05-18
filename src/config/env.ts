@@ -2,11 +2,19 @@ import {Message} from "whatsapp-web.js";
 
 export interface AppConfig {
     mainServiceUrl: string;
+    jwtSecretKey: string;
 }
 
 export function loadAppConfig(): AppConfig {
+    const jwtSecretKey = process.env['JWT_SECRET_KEY'];
+
+    if (!jwtSecretKey) {
+        throw new Error('JWT_SECRET_KEY environment variable is required');
+    }
+
     return {
         mainServiceUrl: process.env['MAIN_SERVICE_URL'] ?? 'http://localhost:8000',
+        jwtSecretKey,
     };
 }
 

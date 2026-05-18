@@ -81,7 +81,7 @@ async function shutdown() {
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 
-startQrServer(3000);
+startQrServer(3000, appConfig.jwtSecretKey);
 
 client.initialize().catch((error) => {
     console.error('Failed to initialize WhatsApp client:', error);
