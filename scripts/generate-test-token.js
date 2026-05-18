@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const SECRET = process.env.JWT_SECRET_KEY || 'your-secret-key-here-must-match-backend';
 
 const payload = {
-    sub: 'test-user-123',
+    sub: '1',
     email: 'test@example.com',
     role: 'admin'
 };
